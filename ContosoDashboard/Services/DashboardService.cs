@@ -13,10 +13,12 @@ public interface IDashboardService
 public class DashboardService : IDashboardService
 {
     private readonly ApplicationDbContext _context;
+    private readonly IDocumentService _documentService;
 
-    public DashboardService(ApplicationDbContext context)
+    public DashboardService(ApplicationDbContext context, IDocumentService documentService)
     {
         _context = context;
+        _documentService = documentService;
     }
 
     public async Task<DashboardSummary> GetDashboardSummaryAsync(int userId)
@@ -40,7 +42,9 @@ public class DashboardService : IDashboardService
                 .CountAsync(),
 
             UnreadNotifications = await _context.Notifications
-                .CountAsync(n => n.UserId == userId && !n.IsRead)
+                .CountAsync(n => n.UserId == userId && !n.IsRead),
+            VisibleDocuments = await _documentService.GetVisibleCountAsync(userId),
+            RecentDocuments = (await _documentService.GetRecentUploadsAsync(userId, 5)).ToList()
         };
 
         return summary;
@@ -67,4 +71,6 @@ public class DashboardSummary
     public int TasksDueToday { get; set; }
     public int ActiveProjects { get; set; }
     public int UnreadNotifications { get; set; }
+    public int VisibleDocuments { get; set; }
+    public List<DocumentListItem> RecentDocuments { get; set; } = new();
 }

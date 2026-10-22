@@ -1,15 +1,16 @@
 # Quickstart: Document Upload and Management Validation
 
-This guide validates the planned feature after implementation. It is for the repository's local training environment only; mock login and local scanning are not production security assurances.
+This guide validates the implemented feature in the repository's local training environment only; mock login and local scanning are not production security assurances.
 
 ## Prerequisites
 
 - Windows with the .NET 8 SDK.
 - SQL Server LocalDB available using the existing `DefaultConnection`.
-- The application configured with a local ClamAV scanner executable and usable local signature database. Confirm scanner health before upload tests; an unavailable scanner must reject uploads.
+- ClamAV `clamscan` installed locally with a usable local signature database. Configure `Documents:Scanner:ExecutablePath` (or `Documents__Scanner__ExecutablePath`) if it is not on `PATH`; uploads fail closed if the scanner is missing, times out, or returns an ambiguous result.
+- A writable document storage directory outside `ContosoDashboard/wwwroot`. The default is `%LOCALAPPDATA%\ContosoDashboard\Documents`; an override can be supplied with `Documents__Storage__RootPath`, but it must remain outside the web root.
 - A populated training database with test users representing Employee, TeamLead, ProjectManager, and Administrator roles, plus project members and users in at least two departments.
 - A clean supported sample file for each format under test, an unsupported-format sample, a file at the 25 MiB boundary, and a file above the limit.
-- Once implementation adds it, the `ContosoDashboard.Tests` test project.
+- The `ContosoDashboard.Tests` test project.
 
 ## Build and automated checks
 
@@ -21,7 +22,13 @@ dotnet build .\ContosoDashboard\ContosoDashboard.csproj
 dotnet test .\ContosoDashboard.Tests\ContosoDashboard.Tests.csproj
 ```
 
-Expected: restore/build succeed; focused tests cover authorization allow/deny, scanner clean/infected/unavailable outcomes, per-file validation, task/project consistency, file cleanup on persistence failure, and authorized versus denied file delivery.
+Expected: restore/build succeed; focused tests cover authorization allow/deny, scanner clean/infected/unavailable outcomes, per-file validation, task/project consistency, and authenticated file routes.
+
+**Execution record (2026-10-22)**: These commands could not be run in the implementation environment because the `dotnet` executable is not installed or available on `PATH`. Install the .NET 8 SDK and rerun the complete commands above before accepting or deploying this training feature. SQL Server LocalDB and ClamAV provisioning were also unavailable for end-to-end checks here.
+
+## Implementation boundary review
+
+The source review confirms that uploads use server-generated keys, remain outside `wwwroot`, and are published only after a clean scanner verdict; scanner errors fail closed. Search and file delivery are scoped to current persisted ownership, project/task participation, department membership, explicit shares, or administrator access. Preview/download routes require authentication, reauthorize on each request, use validated MIME types and `nosniff`, and do not return storage paths. Upload persistence compensates by deleting the published file if metadata persistence fails; deletion removes the catalog entry and then its local file. The schema initializer uses additive, idempotent SQL for existing LocalDB databases and does not drop existing tables. Runtime database, scanner, and browser checks remain outstanding in this environment.
 
 ## Run the application
 

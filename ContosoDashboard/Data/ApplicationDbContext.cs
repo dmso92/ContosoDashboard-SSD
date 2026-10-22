@@ -17,6 +17,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<Notification> Notifications { get; set; } = null!;
     public DbSet<ProjectMember> ProjectMembers { get; set; } = null!;
     public DbSet<Announcement> Announcements { get; set; } = null!;
+    public DbSet<Document> Documents { get; set; } = null!;
+    public DbSet<DocumentTag> DocumentTags { get; set; } = null!;
+    public DbSet<DocumentShare> DocumentShares { get; set; } = null!;
+    public DbSet<DocumentActivity> DocumentActivities { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -40,6 +44,63 @@ public class ApplicationDbContext : DbContext
             .WithOne(p => p.ProjectManager)
             .HasForeignKey(p => p.ProjectManagerId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Document>(entity =>
+        {
+            entity.HasIndex(d => d.StorageKey).IsUnique();
+            entity.HasIndex(d => new { d.UploaderUserId, d.UploadedAtUtc });
+            entity.HasIndex(d => new { d.ProjectId, d.UploadedAtUtc });
+            entity.HasIndex(d => d.TaskId);
+            entity.HasIndex(d => new { d.Category, d.UploadedAtUtc });
+            entity.Property(d => d.Title).IsRequired().HasMaxLength(255);
+            entity.Property(d => d.OriginalFileName).IsRequired().HasMaxLength(255);
+            entity.Property(d => d.StorageKey).IsRequired().HasMaxLength(64);
+            entity.Property(d => d.ContentType).IsRequired().HasMaxLength(255);
+            entity.HasOne(d => d.Uploader).WithMany()
+                .HasForeignKey(d => d.UploaderUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(d => d.Project).WithMany()
+                .HasForeignKey(d => d.ProjectId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(d => d.Task).WithMany()
+                .HasForeignKey(d => d.TaskId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DocumentTag>(entity =>
+        {
+            entity.HasIndex(t => new { t.DocumentId, t.Value }).IsUnique();
+            entity.Property(t => t.Value).IsRequired().HasMaxLength(64);
+            entity.HasOne(t => t.Document).WithMany(d => d.Tags)
+                .HasForeignKey(t => t.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DocumentShare>(entity =>
+        {
+            entity.ToTable(t => t.HasCheckConstraint(
+                "CK_DocumentShare_ExactlyOneRecipient",
+                "(CASE WHEN [RecipientUserId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [RecipientDepartment] IS NULL THEN 0 ELSE 1 END) = 1"));
+            entity.HasIndex(s => new { s.DocumentId, s.RecipientUserId })
+                .IsUnique().HasFilter("[RecipientUserId] IS NOT NULL");
+            entity.HasIndex(s => new { s.DocumentId, s.RecipientDepartment })
+                .IsUnique().HasFilter("[RecipientDepartment] IS NOT NULL");
+            entity.Property(s => s.RecipientDepartment).HasMaxLength(100);
+            entity.HasOne(s => s.Document).WithMany(d => d.Shares)
+                .HasForeignKey(s => s.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(s => s.RecipientUser).WithMany()
+                .HasForeignKey(s => s.RecipientUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(s => s.CreatedBy).WithMany()
+                .HasForeignKey(s => s.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DocumentActivity>(entity =>
+        {
+            entity.HasIndex(a => new { a.OccurredAtUtc, a.Action });
+            entity.HasIndex(a => a.ActorUserId);
+            entity.Property(a => a.OutcomeCode).HasMaxLength(64);
+            entity.Property(a => a.ContentTypeAtEvent).HasMaxLength(255);
+            entity.HasOne(a => a.Document).WithMany(d => d.Activities)
+                .HasForeignKey(a => a.DocumentId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(a => a.Actor).WithMany()
+                .HasForeignKey(a => a.ActorUserId).OnDelete(DeleteBehavior.SetNull);
+        });
 
         // Configure indexes for performance
         modelBuilder.Entity<TaskItem>()

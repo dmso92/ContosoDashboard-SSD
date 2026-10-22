@@ -70,7 +70,7 @@ Append-only record of document actions used for administrator reporting and acce
 | `DocumentActivityId` | Primary key | Generated identifier. |
 | `DocumentId` | Nullable FK to `Document` | Nullable for denied requests where no valid document is resolved. |
 | `ActorUserId` | Nullable FK to `User` | Authenticated actor when known. |
-| `Action` | Required enum | Upload, Download, Preview, Delete, Share, Unshare, DeniedAccess. |
+| `Action` | Required enum | Upload, Download, Preview, MetadataUpdate, Replace, Delete, Share, Unshare, DeniedAccess. |
 | `OccurredAtUtc` | Required | Server timestamp. |
 | `OutcomeCode` | Optional bounded code | Use non-sensitive result categories; do not store file content, raw exception text, credentials, or storage paths. |
 | `ContentTypeAtEvent` | Optional, max 255 | Snapshot content type for reporting uploads after the document itself is deleted. |

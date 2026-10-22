@@ -1,0 +1,501 @@
+@page "/documents"
+@using System.Security.Claims
+@using ContosoDashboard.Models
+@using ContosoDashboard.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@attribute [Authorize]
+@inject IDocumentService DocumentService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JS
+
+<PageTitle>Documents - ContosoDashboard</PageTitle>
+
+<div class="container-fluid">
+    <h1>Documents</h1>
+    <p class="text-muted">Training application document storage. Files are scanned locally before becoming available.</p>
+
+    <section class="card mb-4" aria-labelledby="upload-heading">
+        <div class="card-body">
+            <h2 id="upload-heading" class="h4">Upload documents</h2>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="document-files" class="form-label">Choose one or more files</label>
+                    <InputFile id="document-files" OnChange="UploadFiles" multiple class="form-control"
+                               aria-describedby="upload-help upload-status" />
+                    <div id="upload-help" class="form-text">Supported office, PDF, text, JPEG, and PNG files; 25 MiB maximum per file.</div>
+                </div>
+                <div class="col-md-3">
+                    <label for="document-title" class="form-label">Title</label>
+                    <InputText id="document-title" class="form-control" @bind-Value="title" />
+                </div>
+                <div class="col-md-3">
+                    <label for="document-category" class="form-label">Category</label>
+                    <InputSelect id="document-category" class="form-select" @bind-Value="category">
+                        @foreach (var value in Enum.GetValues<DocumentCategory>())
+                        {
+                            <option value="@value">@CategoryLabel(value)</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-6">
+                    <label for="document-description" class="form-label">Description (optional)</label>
+                    <InputText id="document-description" class="form-control" @bind-Value="description" />
+                </div>
+                <div class="col-md-6">
+                    <label for="document-tags" class="form-label">Tags (comma-separated, optional)</label>
+                    <InputText id="document-tags" class="form-control" @bind-Value="tags" />
+                </div>
+                <div class="col-md-3">
+                    <label for="project-id" class="form-label">Project ID (optional)</label>
+                    <InputNumber id="project-id" class="form-control" @bind-Value="projectId" />
+                </div>
+                <div class="col-md-3">
+                    <label for="task-id" class="form-label">Task ID (optional)</label>
+                    <InputNumber id="task-id" class="form-control" @bind-Value="taskId" />
+                </div>
+            </div>
+            <p id="upload-status" class="mt-3" role="status" aria-live="polite">@uploadStatus</p>
+            @if (uploadResults.Count > 0)
+            {
+                <ul class="list-group" aria-label="Per-file upload results">
+                    @foreach (var result in uploadResults)
+                    {
+                        <li class="list-group-item">
+                            <strong>@result.FileName</strong>: @result.Message
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    </section>
+
+    <section class="card mb-4" aria-labelledby="search-heading">
+        <div class="card-body">
+            <h2 id="search-heading" class="h4">Find documents</h2>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label for="search-term" class="form-label">Search</label>
+                    <InputText id="search-term" class="form-control" @bind-Value="searchTerm" />
+                </div>
+                <div class="col-md-3">
+                    <label for="search-category" class="form-label">Category</label>
+                    <InputSelect id="search-category" class="form-select" @bind-Value="searchCategory">
+                        <option value="">All categories</option>
+                        @foreach (var value in Enum.GetValues<DocumentCategory>())
+                        {
+                            <option value="@value">@CategoryLabel(value)</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-3">
+                    <label for="sort-by" class="form-label">Sort by</label>
+                    <select id="sort-by" class="form-select" @bind="sortBy">
+                        <option value="date">Upload date</option>
+                        <option value="title">Title</option>
+                        <option value="category">Category</option>
+                        <option value="size">File size</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="filter-project-id" class="form-label">Project ID</label>
+                    <InputNumber id="filter-project-id" class="form-control" @bind-Value="filterProjectId" />
+                </div>
+                <div class="col-md-2">
+                    <label for="from-date" class="form-label">From date</label>
+                    <InputDate id="from-date" class="form-control" @bind-Value="fromDate" />
+                </div>
+                <div class="col-md-2">
+                    <label for="to-date" class="form-label">To date</label>
+                    <InputDate id="to-date" class="form-control" @bind-Value="toDate" />
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" @onclick="LoadDocuments">Search</button>
+                </div>
+                <div class="col-md-2">
+                    <div class="form-check">
+                        <InputCheckbox id="descending" class="form-check-input" @bind-Value="descending" />
+                        <label class="form-check-label" for="descending">Newest / descending first</label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check">
+                        <InputCheckbox id="shared-only" class="form-check-input" @bind-Value="sharedOnly" />
+                        <label class="form-check-label" for="shared-only">Shared with me</label>
+                    </div>
+                    <div class="form-check">
+                        <InputCheckbox id="mine-only" class="form-check-input" @bind-Value="mineOnly" />
+                        <label class="form-check-label" for="mine-only">My documents</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @if (documents == null)
+    {
+        <p>Search to view documents you are authorized to access.</p>
+    }
+    else if (documents.Count == 0)
+    {
+        <div class="alert alert-info" role="status">No matching documents were found.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <caption>Documents available to you</caption>
+                <thead>
+                    <tr><th scope="col">Title</th><th scope="col">Category</th><th scope="col">Uploaded</th><th scope="col">Size</th><th scope="col">Project</th><th scope="col">Actions</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var document in documents)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@document.Title</strong>
+                                <div class="small text-muted">@document.OriginalFileName</div>
+                                @if (document.Tags.Count > 0)
+                                {
+                                    <div class="small">Tags: @string.Join(", ", document.Tags)</div>
+                                }
+                            </td>
+                            <td>@CategoryLabel(document.Category)</td>
+                            <td><time datetime="@document.UploadedAtUtc.ToString("O")">@document.UploadedAtUtc.ToLocalTime().ToString("g")</time></td>
+                            <td>@FormatSize(document.FileSizeBytes)</td>
+                            <td>@(document.ProjectName ?? "—")</td>
+                            <td>
+                                @if (document.ContentType is "application/pdf" or "image/png" or "image/jpeg")
+                                {
+                                    <a class="btn btn-sm btn-outline-primary" href="/api/documents/@document.DocumentId/preview" target="_blank" rel="noopener">Preview</a>
+                                }
+                                <a class="btn btn-sm btn-outline-secondary" href="/api/documents/@document.DocumentId/download">Download</a>
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => EditDocument(document)">Manage</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (editingDocument != null)
+    {
+        <section class="card my-4" aria-labelledby="manage-document-heading">
+            <div class="card-body">
+                <h2 id="manage-document-heading" class="h4">Manage @editingDocument.Title</h2>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="edit-title" class="form-label">Title</label>
+                        <InputText id="edit-title" class="form-control" @bind-Value="editTitle" />
+                    </div>
+                    <div class="col-md-4">
+                        <label for="edit-category" class="form-label">Category</label>
+                        <InputSelect id="edit-category" class="form-select" @bind-Value="editCategory">
+                            @foreach (var value in Enum.GetValues<DocumentCategory>())
+                            {
+                                <option value="@value">@CategoryLabel(value)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="edit-tags" class="form-label">Tags (comma-separated)</label>
+                        <InputText id="edit-tags" class="form-control" @bind-Value="editTags" />
+                    </div>
+                    <div class="col-12">
+                        <label for="edit-description" class="form-label">Description</label>
+                        <InputText id="edit-description" class="form-control" @bind-Value="editDescription" />
+                    </div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button class="btn btn-primary" @onclick="SaveMetadata">Save metadata</button>
+                    <label for="replacement-file" class="form-label mb-0 align-self-center">Replace current file:</label>
+                    <InputFile id="replacement-file" OnChange="ReplaceSelectedFile" class="form-control" />
+                </div>
+                <div class="row g-3 mt-2">
+                    <div class="col-md-4">
+                        <label for="share-user" class="form-label">Share with user ID</label>
+                        <InputNumber id="share-user" class="form-control" @bind-Value="shareUserId" />
+                    </div>
+                    <div class="col-md-4">
+                        <label for="share-department" class="form-label">Or share with department</label>
+                        <InputText id="share-department" class="form-control" @bind-Value="shareDepartment" />
+                    </div>
+                    <div class="col-md-4 align-self-end">
+                        <button class="btn btn-outline-primary" @onclick="ShareDocument">Share document</button>
+                        <button class="btn btn-outline-danger ms-2" @onclick="DeleteEditingDocument">Delete</button>
+                    </div>
+                </div>
+                @if (documentShares.Count > 0)
+                {
+                    <h3 class="h6 mt-3">Current shares</h3>
+                    <ul class="list-group">
+                        @foreach (var share in documentShares)
+                        {
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>@share.Recipient</span>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => RevokeShare(share.DocumentShareId)">Remove share</button>
+                            </li>
+                        }
+                    </ul>
+                }
+                <p class="mt-3" role="status" aria-live="polite">@managementStatus</p>
+            </div>
+        </section>
+    }
+
+    @if (report != null)
+    {
+        <section class="card my-4" aria-labelledby="document-report-heading">
+            <div class="card-body">
+                <h2 id="document-report-heading" class="h4">Administrator document report</h2>
+                <h3 class="h6">Stored content types</h3>
+                <ul>
+                    @foreach (var row in report.ByContentType)
+                    {
+                        <li>@row.Label: @row.Count</li>
+                    }
+                </ul>
+                <h3 class="h6">Recorded activity</h3>
+                <ul>
+                    @foreach (var row in report.ByAction)
+                    {
+                        <li>@row.Label: @row.Count</li>
+                    }
+                </ul>
+                <h3 class="h6">Documents by uploader</h3>
+                <ul>
+                    @foreach (var row in report.ByUploader)
+                    {
+                        <li>@row.Label: @row.Count</li>
+                    }
+                </ul>
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "projectId")]
+    public int? InitialProjectId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "taskId")]
+    public int? InitialTaskId { get; set; }
+
+    private int currentUserId;
+    private bool isAdministrator;
+    private string title = string.Empty;
+    private string? description;
+    private string tags = string.Empty;
+    private DocumentCategory category = DocumentCategory.Other;
+    private int? projectId;
+    private int? taskId;
+    private int? filterProjectId;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+    private string? searchTerm;
+    private string? searchCategory;
+    private string sortBy = "date";
+    private bool sharedOnly;
+    private bool mineOnly;
+    private bool descending = true;
+    private string uploadStatus = string.Empty;
+    private IReadOnlyList<DocumentUploadResult> uploadResults = Array.Empty<DocumentUploadResult>();
+    private IReadOnlyList<DocumentListItem>? documents;
+    private DocumentListItem? editingDocument;
+    private string editTitle = string.Empty;
+    private string? editDescription;
+    private string editTags = string.Empty;
+    private DocumentCategory editCategory;
+    private int? shareUserId;
+    private string? shareDepartment;
+    private string managementStatus = string.Empty;
+    private DocumentReport? report;
+    private IReadOnlyList<DocumentShareItem> documentShares = Array.Empty<DocumentShareItem>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var principal = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        int.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out currentUserId);
+        isAdministrator = principal.IsInRole(nameof(UserRole.Administrator));
+        projectId = InitialProjectId;
+        taskId = InitialTaskId;
+        if (currentUserId > 0)
+        {
+            await LoadDocuments();
+            if (isAdministrator)
+                report = await DocumentService.GetReportAsync(currentUserId);
+        }
+    }
+
+    private async Task UploadFiles(InputFileChangeEventArgs args)
+    {
+        uploadResults = Array.Empty<DocumentUploadResult>();
+        if (currentUserId <= 0)
+        {
+            uploadStatus = "Your sign-in could not be verified.";
+            return;
+        }
+        IReadOnlyList<IBrowserFile> files;
+        try
+        {
+            files = args.GetMultipleFiles(50);
+        }
+        catch (InvalidOperationException)
+        {
+            uploadStatus = "Choose no more than 50 files per batch.";
+            return;
+        }
+        var results = new List<DocumentUploadResult>();
+        foreach (var file in files)
+        {
+            uploadStatus = $"Scanning {file.Name}…";
+            try
+            {
+                await using var stream = file.OpenReadStream(DocumentService.MaximumFileBytes);
+                var perFileTitle = string.IsNullOrWhiteSpace(title)
+                    ? Path.GetFileNameWithoutExtension(file.Name)
+                    : title.Trim();
+                results.Add(await DocumentService.UploadAsync(currentUserId, new DocumentUploadRequest
+                {
+                    FileName = file.Name,
+                    Content = stream,
+                    Title = perFileTitle,
+                    Description = description,
+                    Category = category,
+                    Tags = tags.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),
+                    ProjectId = projectId,
+                    TaskId = taskId
+                }));
+            }
+            catch (IOException)
+            {
+                results.Add(new(false, file.Name, "The file could not be read. It may exceed the per-file limit."));
+            }
+            catch (Exception)
+            {
+                results.Add(new(false, file.Name, "The file could not be processed. Please try again."));
+            }
+            uploadResults = results.ToArray();
+            StateHasChanged();
+        }
+        uploadStatus = "Upload processing finished.";
+        await LoadDocuments();
+    }
+
+    private async Task LoadDocuments()
+    {
+        Enum.TryParse<DocumentCategory>(searchCategory, true, out var parsedCategory);
+        documents = await DocumentService.SearchAsync(currentUserId, new DocumentSearch
+        {
+            Query = searchTerm,
+            Category = string.IsNullOrWhiteSpace(searchCategory) ? null : parsedCategory,
+            ProjectId = filterProjectId ?? projectId,
+            FromUtc = fromDate?.ToUniversalTime(),
+            ToUtc = toDate?.ToUniversalTime(),
+            SharedWithMeOnly = sharedOnly,
+            UploadedByMeOnly = mineOnly,
+            SortBy = sortBy,
+            Descending = descending
+        });
+    }
+
+    private async Task EditDocument(DocumentListItem document)
+    {
+        editingDocument = document;
+        editTitle = document.Title;
+        editDescription = document.Description;
+        editTags = string.Join(", ", document.Tags);
+        editCategory = document.Category;
+        shareUserId = null;
+        shareDepartment = null;
+        managementStatus = string.Empty;
+        documentShares = await DocumentService.GetSharesAsync(currentUserId, document.DocumentId);
+    }
+
+    private async Task SaveMetadata()
+    {
+        if (editingDocument == null)
+            return;
+        var changed = await DocumentService.UpdateMetadataAsync(currentUserId, editingDocument.DocumentId,
+            editTitle, editDescription, editCategory, ParseTags(editTags));
+        managementStatus = changed ? "Document details were updated." : "You cannot update this document or the details are invalid.";
+        await LoadDocuments();
+    }
+
+    private async Task ReplaceSelectedFile(InputFileChangeEventArgs args)
+    {
+        if (editingDocument == null)
+            return;
+        var file = args.File;
+        try
+        {
+            await using var stream = file.OpenReadStream(DocumentService.MaximumFileBytes);
+            var replaced = await DocumentService.ReplaceFileAsync(currentUserId, editingDocument.DocumentId,
+                new DocumentUploadRequest
+                {
+                    FileName = file.Name,
+                    Content = stream,
+                    Title = editTitle,
+                    Description = editDescription,
+                    Category = editCategory,
+                    Tags = ParseTags(editTags)
+                });
+            managementStatus = replaced
+                ? "The current file was replaced after a clean scan."
+                : "The file was not replaced. Check authorization, file type, size, and scanner availability.";
+            await LoadDocuments();
+        }
+        catch (Exception)
+        {
+            managementStatus = "The replacement could not be processed.";
+        }
+    }
+
+    private async Task ShareDocument()
+    {
+        if (editingDocument == null)
+            return;
+        var shared = await DocumentService.ShareAsync(currentUserId, editingDocument.DocumentId, shareUserId, shareDepartment);
+        managementStatus = shared ? "The document was shared and recipients were notified." : "The share was not created. Check recipient details and owner permissions.";
+        if (shared)
+            documentShares = await DocumentService.GetSharesAsync(currentUserId, editingDocument.DocumentId);
+    }
+
+    private async Task RevokeShare(int shareId)
+    {
+        if (editingDocument == null)
+            return;
+        var removed = await DocumentService.UnshareAsync(currentUserId, editingDocument.DocumentId, shareId);
+        managementStatus = removed ? "The share was removed." : "The share could not be removed.";
+        documentShares = await DocumentService.GetSharesAsync(currentUserId, editingDocument.DocumentId);
+    }
+
+    private async Task DeleteEditingDocument()
+    {
+        if (editingDocument == null)
+            return;
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Permanently delete this document and revoke its shares?");
+        if (!confirmed)
+            return;
+        var documentId = editingDocument.DocumentId;
+        var deleted = await DocumentService.DeleteAsync(currentUserId, documentId, confirmed);
+        managementStatus = deleted ? "The document was permanently deleted." : "You are not authorized to delete this document.";
+        editingDocument = null;
+        await LoadDocuments();
+    }
+
+    private static IReadOnlyCollection<string> ParseTags(string values) =>
+        values.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+    private static string CategoryLabel(DocumentCategory value) => value switch
+    {
+        DocumentCategory.ProjectDocuments => "Project Documents",
+        DocumentCategory.TeamResources => "Team Resources",
+        DocumentCategory.PersonalFiles => "Personal Files",
+        _ => value.ToString()
+    };
+
+    private static string FormatSize(long bytes) => bytes < 1024 * 1024
+        ? $"{bytes / 1024d:0.#} KB" : $"{bytes / (1024d * 1024d):0.#} MB";
+}

@@ -78,6 +78,9 @@ ContosoDashboard is built using ASP.NET Core 8.0 with Blazor Server and provides
 - **Data Models**: Complete entity framework models for Users, Tasks, Projects, Notifications, and Announcements
 - **Business Services**: Service layer for all core functionality (Tasks, Projects, Users, Notifications, Dashboard)
 - **Database Context**: EF Core DbContext with relationships, indexes, and seed data
+- **Document Upload and Management (training-only)**: Authenticated uploads are staged outside `wwwroot`, checked against an allowlist, and published only after a clean local ClamAV scan. Document access is scoped to current ownership, project/task membership, department/team membership, explicit shares, or administrator permissions; preview/download routes reauthorize each request.
+
+The document feature is intentionally local/offline. It requires SQL Server LocalDB and a locally provisioned ClamAV scanner/signature database. If scanning is unavailable, uploads are rejected. Its mock sign-in, local storage, audit/reporting, and configuration are educational examples only and are not production security assurances. See [`specs/001-document-upload-management/quickstart.md`](specs/001-document-upload-management/quickstart.md) for setup and validation instructions.
 
 ### 🔧 Technical Stack
 

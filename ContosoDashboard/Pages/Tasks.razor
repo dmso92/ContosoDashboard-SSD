@@ -126,6 +126,9 @@
                                 <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewTaskDetails(task.TaskId)">
                                     <i class="bi bi-eye"></i>
                                 </button>
+                                <a class="btn btn-sm btn-outline-secondary" href="@($"/documents?taskId={task.TaskId}")">
+                                    Task documents
+                                </a>
                             </td>
                         </tr>
                     }
