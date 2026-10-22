@@ -5,6 +5,12 @@
 **Status**: Draft
 **Input**: User description: `StakeholderDocs/document-upload-and-management-feature.md`
 
+## Clarifications
+
+### Session 2026-10-22
+
+- Q: Should document audit records also capture preview activity and denied access attempts, in addition to uploads, downloads, deletions, and shares? → A: Record successful previews and denied access attempts in addition to uploads, downloads, deletions, and sharing activity.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Upload and Secure Documents (Priority: P1)
@@ -75,7 +81,7 @@ An employee sees recent documents and a relevant document count on the dashboard
 1. **Given** an employee with uploaded documents, **When** they view the dashboard, **Then** Recent Documents shows their five most recently uploaded documents and the document count reflects documents visible to them.
 2. **Given** an employee with access to a task, **When** they view task details or upload from that task, **Then** related documents are visible there and newly uploaded documents are associated with the task's project.
 3. **Given** a new document is added to a project, **When** a project member is eligible to receive project notices, **Then** that member receives an in-app notification.
-4. **Given** an administrator, **When** they request a document activity report, **Then** it summarizes document types, active uploaders, and access patterns using recorded upload, download, deletion, and sharing activity.
+4. **Given** an administrator, **When** they request a document activity report, **Then** it summarizes document types, active uploaders, and access patterns using recorded upload, download, preview, deletion, sharing, and denied access activity.
 
 ### Edge Cases
 
@@ -114,7 +120,7 @@ An employee sees recent documents and a relevant document count on the dashboard
 - **FR-019**: A document uploaded from a task MUST be associated with that task's project. Users MUST be able to see and attach related documents from task details.
 - **FR-020**: The dashboard MUST show a Recent Documents area with the current user's five most recently uploaded documents and include a document count in its summary cards, limited to documents visible to that user.
 - **FR-021**: The system MUST notify eligible project members when a new document is added to one of their projects.
-- **FR-022**: The system MUST record document uploads, downloads, deletions, and sharing activity. Administrators MUST be able to generate reports showing the most uploaded document types, most active uploaders, and document access patterns.
+- **FR-022**: The system MUST record document uploads, downloads, successful previews, deletions, sharing activity, and denied document access attempts. Administrators MUST be able to generate reports showing the most uploaded document types, most active uploaders, and document access patterns.
 - **FR-023**: Document controls MUST have accessible names and labels, be keyboard-accessible, and present progress, validation, and error states in a perceivable way. Status MUST NOT be communicated by color alone.
 - **FR-024**: Document lists containing up to 500 documents MUST load within 2 seconds; document searches MUST return results within 2 seconds; supported previews MUST load within 3 seconds; and uploads of files up to 25 MB MUST complete within 30 seconds on a typical network.
 
@@ -123,7 +129,7 @@ An employee sees recent documents and a relevant document count on the dashboard
 - **Document**: A work-related file and its title, description, category, tags, type, size, upload time, uploader, and optional project or task association.
 - **Project and Task Association**: The project or task context that determines where a document is shown and which authorized project members may access it.
 - **Document Share**: A grant from a document owner to a specified user or team, including the recipients' ability to locate the shared document and the related notification.
-- **Document Activity**: A record of upload, download, deletion, and sharing actions used for oversight and reporting.
+- **Document Activity**: A record of upload, download, successful preview, deletion, sharing, and denied access events used for oversight and reporting.
 - **User, Team, and Role**: Existing dashboard identities and permissions used to determine document ownership, project/team scope, administrative access, and share recipients.
 
 ## Success Criteria *(mandatory)*
