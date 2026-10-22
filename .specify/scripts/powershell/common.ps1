@@ -135,3 +135,77 @@ function Test-DirHasFiles {
     }
 }
 
+function Get-TemplateCandidates {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$TemplateName,
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot
+    )
+
+    if ($TemplateName -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') {
+        throw "Invalid template name '$TemplateName'."
+    }
+
+    $fileName = "$TemplateName.md"
+    $specifyRoot = Join-Path $RepoRoot '.specify'
+    $candidates = [System.Collections.Generic.List[string]]::new()
+
+    $override = Join-Path $specifyRoot "templates/overrides/$fileName"
+    if (Test-Path -LiteralPath $override -PathType Leaf) {
+        $candidates.Add($override)
+    }
+
+    foreach ($layerRoot in @(
+        (Join-Path $specifyRoot 'presets'),
+        (Join-Path $specifyRoot 'extensions')
+    )) {
+        if (Test-Path -LiteralPath $layerRoot -PathType Container) {
+            foreach ($layer in (Get-ChildItem -LiteralPath $layerRoot -Directory | Sort-Object Name)) {
+                $layerTemplate = Join-Path $layer.FullName "templates/$fileName"
+                if (Test-Path -LiteralPath $layerTemplate -PathType Leaf) {
+                    $candidates.Add($layerTemplate)
+                }
+            }
+        }
+    }
+
+    $sharedTemplate = Join-Path $specifyRoot "templates/$fileName"
+    if (Test-Path -LiteralPath $sharedTemplate -PathType Leaf) {
+        $candidates.Add($sharedTemplate)
+    }
+
+    return $candidates.ToArray()
+}
+
+function Resolve-Template {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$TemplateName,
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot
+    )
+
+    $candidates = @(Get-TemplateCandidates -TemplateName $TemplateName -RepoRoot $RepoRoot)
+    if ($candidates.Count -gt 0) {
+        return $candidates[0]
+    }
+
+    return $null
+}
+
+function Resolve-TemplateContent {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$TemplateName,
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot
+    )
+
+    $templatePath = Resolve-Template -TemplateName $TemplateName -RepoRoot $RepoRoot
+    if ($null -eq $templatePath) {
+        return $null
+    }
+
+    return [string](Get-Content -LiteralPath $templatePath -Raw)
+}
